@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8">
+<title>Research Copilot</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<script>
+tailwind.config = { darkMode: 'class' }
+</script>
+
+<style>
+.paper-card {
+  background: #020617;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+.paper-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+.paper-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+  background: #1e293b;
+  color: #c7d2fe;
+  border: 1px solid #334155;
+}
+.paper-btn:hover {
+  background: #334155;
+  color: white;
+}
+</style>
+</head>
+
+<body class="h-full bg-gray-900 text-gray-100 flex flex-col">
+
+<!-- NAVBAR -->
+<nav class="fixed top-0 w-full bg-gray-800 border-b z-10">
+  <div class="max-w-5xl mx-auto px-6 py-3 flex justify-center relative">
+    <h1 class="text-lg font-semibold">🤖 Research Copilot</h1>
+    <button id="themeToggle" class="absolute right-6">🌙</button>
+  </div>
+</nav>
+
+<!-- CHAT -->
+<div id="chat" class="flex-1 overflow-y-auto pt-20 pb-32 px-4">
+  <div class="max-w-5xl mx-auto space-y-6">
+    <div class="flex justify-start">
+      <div class="bg-gray-800 px-5 py-4 rounded-xl shadow">
+        <div class="text-sm text-gray-400 mb-1">Research Copilot</div>
+        👋 Hi! How can I help you today?
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TYPING -->
+<div id="typing" class="hidden text-sm text-gray-400 px-6 pb-2">
+  🤖 Research Copilot is thinking…
+</div>
+
+<!-- PDF MODAL -->
+<div id="pdfModal" class="fixed inset-0 bg-black/70 hidden z-50 flex items-center justify-center">
+  <div class="bg-gray-900 w-11/12 h-5/6 rounded-xl overflow-hidden relative">
+    <button onclick="closePDF()" class="absolute top-3 right-3 text-white text-xl">✖</button>
+    <iframe id="pdfFrame" class="w-full h-full"></iframe>
+  </div>
+</div>
+
+<!-- INPUT -->
+<form id="chatForm" class="fixed bottom-0 w-full bg-gray-800 border-t">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex gap-3">
+    <textarea id="query" rows="1"
+      class="flex-1 resize-none rounded-xl px-4 py-3 bg-gray-900 border border-gray-700"
+      placeholder="Ask anything..." required></textarea>
+    <button class="bg-indigo-600 px-6 rounded-xl">Send</button>
+  </div>
+</form>
+
+<script>
+const chat = document.querySelector("#chat > div")
+const form = document.getElementById("chatForm")
+const input = document.getElementById("query")
+const typing = document.getElementById("typing")
+
+/* ---------- DEBUG ---------- */
+const DEBUG = true
+const log = (...a) => DEBUG && console.log(...a)
+
+/* Dark mode */
+if (localStorage.theme === "dark") document.documentElement.classList.add("dark")
+document.getElementById("themeToggle").onclick = () => {
+  document.documentElement.classList.toggle("dark")
+  localStorage.theme = document.documentElement.classList.contains("dark") ? "dark" : "light"
+}
+
+/* PDF */
+function openPDF(url) {
+  log("📄 Open PDF:", url)
+  pdfFrame.src = url
+  pdfModal.classList.remove("hidden")
+}
+function closePDF() {
+  pdfFrame.src = ""
+  pdfModal.classList.add("hidden")
+}
+
+/* Save */
+async function savePaper(url) {
+  log("⭐ Save paper:", url)
+  const fd = new FormData()
+  fd.append("url", url)
+  await fetch("/save-paper", { method: "POST", body: fd })
+  alert("⭐ Paper saved!")
+}
+
+/* Render papers */
+function renderPaperCards(markdown) {
+  let html = marked.parse(markdown)
+  html = html.replace(/<hr\s*\/?>/gi, "%%SPLIT%%")
+
+  let out = ""
+  html.split("%%SPLIT%%").forEach(block => {
+    if (!block.includes("<h3")) return
+    const link = (block.match(/https?:\/\/[^\s"<]+/) || ["#"])[0]
+    const score = Math.floor(Math.random() * 15) + 85
+
+    out += `
+      <div class="paper-card">
+        ${block}
+        <div class="text-sm text-gray-400 mt-2">📊 Relevance: <b>${score}%</b></div>
+        <div class="paper-actions">
+          <button onclick="openPDF('${link}')" class="paper-btn">📄 Preview</button>
+          <a href="${link}" target="_blank" class="paper-btn">👁 View</a>
+          <a href="${link}" download class="paper-btn">⬇ Download</a>
+          <button onclick="savePaper('${link}')" class="paper-btn">⭐ Save</button>
+        </div>
+      </div>`
+  })
+  return out
+}
+
+/* STREAM */
+form.onsubmit = async e => {
+  e.preventDefault()
+  const q = input.value.trim()
+  if (!q) return
+
+  log("🧠 Query:", q)
+  input.value = ""
+
+  chat.innerHTML += `
+    <div class="flex justify-end">
+      <div class="bg-indigo-600 px-5 py-3 rounded-xl">${q}</div>
+    </div>`
+
+  const ai = document.createElement("div")
+  ai.className = "flex justify-start"
+  ai.innerHTML = `
+    <div class="bg-gray-800 px-5 py-4 rounded-xl shadow">
+      <div class="text-sm text-gray-400 mb-1">Research Copilot</div>
+      <div class="ai-text"></div>
+    </div>`
+  chat.appendChild(ai)
+
+  const aiText = ai.querySelector(".ai-text")
+  typing.classList.remove("hidden")
+
+  const fd = new FormData()
+  fd.append("query", q)
+
+  const res = await fetch("/ask-stream", { method: "POST", body: fd })
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+
+  let buffer = ""
+  let markdown = ""
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value)
+    const parts = buffer.split("\n\n")
+
+    parts.slice(0, -1).forEach(part => {
+    if (!part.startsWith("data:")) return
+
+    try {
+        const data = JSON.parse(part.replace("data: ", ""))
+        console.log("📦 Parsed SSE data:", data)
+
+        // ✅ FIX: use `data`, not `json`
+        if (typeof data.token === "string") {
+            markdown += data.token
+        }
+
+        if (data.done) {
+            console.log("✅ Rendering final output")
+            aiText.innerHTML = markdown   // or marked.parse(markdown)
+            typing.classList.add("hidden")
+        }
+
+    } catch (err) {
+        console.error("❌ JSON parse error:", err, part)
+    }
+})
+
+    buffer = parts[parts.length - 1]
+  }
+}
+
+
+
+const textarea = document.getElementById("query")
+// const form = document.getElementById("chatForm")
+
+textarea.addEventListener("keydown", (e) => {
+    // ENTER → send
+    if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault()     // stop newline
+        form.requestSubmit()  // submit form
+    }
+})
+</script>
+
+</body>
+</html>
