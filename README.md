@@ -17,11 +17,19 @@ It provides a clean UI, real-time streaming responses, and modular AI agents for
 - ☁️ Azure-ready architecture
 
 ---
-
 ## 🏗️ Project Architecture
 
+### System Architecture
+![System Architecture](img/img.png)
 
+> High-level architecture showing the agentic design, FastAPI backend, and Azure service integrations.
 
+---
+
+### Flow Diagram
+![Flow Diagram](img/flow_diagram.png)
+
+> End-to-end flow of a user query through the MasterAgent, sub-agents, RAG pipeline, and streaming response (SSE).
 
 ---
 
